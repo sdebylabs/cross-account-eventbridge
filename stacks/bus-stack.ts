@@ -1,12 +1,12 @@
-import { Stack, StackProps } from 'aws-cdk-lib';
-import { Construct } from 'constructs';
+import { Stack, StackProps } from 'aws-cdk-lib'
+import { Construct } from 'constructs'
 import * as events from 'aws-cdk-lib/aws-events'
 import * as logs from 'aws-cdk-lib/aws-logs'
 import {
-   EventBus as EventBusTarget,
-   CloudWatchLogGroup as LogGroupTarget
+  EventBus as EventBusTarget,
+  CloudWatchLogGroup as LogGroupTarget,
 } from 'aws-cdk-lib/aws-events-targets'
-import { EventBus } from 'aws-cdk-lib/aws-events';
+import { EventBus } from 'aws-cdk-lib/aws-events'
 
 interface BusStackProps extends StackProps {
   applicationAccounts: string[]
@@ -24,7 +24,7 @@ export class BusStack extends Stack {
    */
 
   constructor(scope: Construct, id: string, props: BusStackProps) {
-    super(scope, id, props);
+    super(scope, id, props)
 
     const busLogGroup = new logs.LogGroup(this, 'GlobalBusLogs', {
       retention: logs.RetentionDays.ONE_WEEK,
@@ -41,30 +41,38 @@ export class BusStack extends Stack {
         Principal: { AWS: props?.applicationAccounts },
         Action: 'events:PutEvents',
         Resource: bus.eventBusArn,
-        Effect: 'Allow'
-      }
+        Effect: 'Allow',
+      },
     })
 
     new events.Rule(this, 'BusLoggingRule', {
       eventBus: bus,
       eventPattern: {
-        source: [{ 'prefix': ''}] as any[] // Match all
+        source: [{ prefix: '' }] as any[], // Match all
       },
-      targets: [new LogGroupTarget(busLogGroup)]
+      targets: [new LogGroupTarget(busLogGroup)],
     })
-    
+
     // Create forwarding rules to forward events to a local bus in a different account
     // and ensure the global bus has permissions to receive events from such accounts.
     for (const applicationAccount of props.applicationAccounts) {
       const localBusArn = `arn:aws:events:${this.region}:${applicationAccount}:event-bus/local-bus`
       const rule = new events.Rule(this, `globalTo${applicationAccount}`, {
-        eventBus: this.bus,
+        eventBus: bus,
         ruleName: `globalTo${applicationAccount}`,
         eventPattern: {
-          account: [{ 'anything-but': applicationAccount }] as any[]
-        }
+          account: [{ 'anything-but': applicationAccount }] as any[],
+        },
       })
-      rule.addTarget(new EventBusTarget(EventBus.fromEventBusArn(this, `localBus${applicationAccount}`, localBusArn)))
+      rule.addTarget(
+        new EventBusTarget(
+          EventBus.fromEventBusArn(
+            this,
+            `localBus${applicationAccount}`,
+            localBusArn
+          )
+        )
+      )
     }
     this.bus = bus
   }
